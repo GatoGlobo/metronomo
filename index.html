@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Metrónomo</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Metrónomo">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#ECEFEA" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121614" media="(prefers-color-scheme: dark)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one-screen instrument — tempo marking, giant BPM, beat lights, controls stacked for the thumb */
+:root{
+  --bg:#ECEFEA; --surface:#F7F8F5; --fg:#1B2320; --muted:#5E6A64; --line:#CDD3CD;
+  --accent:#A8761E; --accent-ink:#FFFFFF; --beat:#D5DBD4;
+  --display:"Bricolage Grotesque", "Arial Narrow", system-ui, sans-serif;
+  --body:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121614; --surface:#1A201D; --fg:#E5E9E3; --muted:#93A099; --line:#2C3531;
+  --accent:#DDA846; --accent-ink:#1A1408; --beat:#2A322E; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121614; --surface:#1A201D; --fg:#E5E9E3; --muted:#93A099; --line:#2C3531;
+  --accent:#DDA846; --accent-ink:#1A1408; --beat:#2A322E; color-scheme:dark}
+
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+button,input{font:inherit}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;
+  display:flex;justify-content:center;padding-inline:16px;-webkit-tap-highlight-color:transparent}
+.app{width:100%;max-width:420px;display:flex;flex-direction:column;gap:22px;padding-block:24px 32px;justify-content:center}
+
+.marking{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.marking .name{font-family:var(--display);font-weight:500;font-style:normal;font-size:1.35rem;letter-spacing:.01em}
+.marking .range{font-size:.75rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;font-variant-numeric:tabular-nums}
+
+.tempo{display:grid;grid-template-columns:56px 1fr 56px;align-items:center;gap:8px}
+.bpm{text-align:center;line-height:.9}
+.bpm output{display:block;font-family:var(--display);font-weight:800;font-size:clamp(5.5rem,30vw,8.5rem);
+  font-variant-numeric:tabular-nums;letter-spacing:-.04em}
+.bpm span{font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+.step{width:56px;height:56px;border-radius:50%;border:1px solid var(--line);background:var(--surface);
+  color:var(--fg);font-size:1.6rem;font-family:var(--body);cursor:pointer;display:grid;place-items:center}
+.step:active{transform:scale(.94)}
+
+input[type=range]{width:100%;accent-color:var(--accent);height:28px}
+
+.beats{display:flex;gap:10px;justify-content:center;min-height:22px}
+.dot{width:20px;height:20px;border-radius:50%;background:var(--beat);transition:background .06s,transform .06s}
+.dot.first{box-shadow:inset 0 0 0 2px var(--accent)}
+.dot.on{background:var(--fg);transform:scale(1.15)}
+.dot.first.on{background:var(--accent)}
+
+.play{height:72px;border:none;border-radius:36px;background:var(--accent);color:var(--accent-ink);
+  font-family:var(--display);font-weight:800;font-size:1.4rem;letter-spacing:.02em;cursor:pointer}
+.play:active{transform:scale(.98)}
+
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field label,.label{font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.seg{display:flex;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface)}
+.seg button{flex:1;height:44px;border:none;background:transparent;color:var(--fg);font:600 1rem var(--body);
+  cursor:pointer;font-variant-numeric:tabular-nums}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
+.tap{height:44px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--fg);
+  font:600 1rem var(--body);cursor:pointer}
+.tap:active{background:var(--beat)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.hint{font-size:.78rem;color:var(--muted);text-align:center}
+@media (prefers-reduced-motion:reduce){.dot,.step,.play{transition:none}.step:active,.play:active{transform:none}}
+</style>
+
+</head>
+<body>
+<main class="app">
+  <div class="marking">
+    <div class="name" id="marking">Moderato</div>
+    <div class="range" id="range">108–120 BPM</div>
+  </div>
+
+  <div class="tempo">
+    <button class="step" id="minus" aria-label="Bajar tempo">−</button>
+    <div class="bpm"><output id="bpm">112</output><span>pulsos por minuto</span></div>
+    <button class="step" id="plus" aria-label="Subir tempo">+</button>
+  </div>
+
+  <input type="range" id="slider" min="30" max="240" value="112" aria-label="Tempo">
+
+  <div class="beats" id="beats" aria-hidden="true"></div>
+
+  <button class="play" id="play">Iniciar</button>
+
+  <div class="row">
+    <div class="field">
+      <span class="label">Compás</span>
+      <div class="seg" id="meter">
+        <button data-n="2">2</button><button data-n="3">3</button><button data-n="4" aria-pressed="true">4</button><button data-n="6">6</button>
+      </div>
+    </div>
+    <div class="field">
+      <label for="tap">Marcar tempo</label>
+      <button class="tap" id="tap">Tap</button>
+    </div>
+  </div>
+  <p class="hint">El primer tiempo suena acentuado. Espacio inicia o detiene.</p>
+</main>
+
+<script>
+const MARKS=[[30,40,"Grave"],[40,60,"Largo"],[60,66,"Larghetto"],[66,76,"Adagio"],[76,108,"Andante"],
+  [108,120,"Moderato"],[120,156,"Allegro"],[156,176,"Vivace"],[176,200,"Presto"],[200,241,"Prestissimo"]];
+const $=id=>document.getElementById(id);
+let bpm=112, beatsPer=4, ctx=null, running=false, nextTime=0, beat=0, timer=null, wake=null;
+
+function setBpm(v){
+  bpm=Math.max(30,Math.min(240,Math.round(v)));
+  $("bpm").textContent=bpm; $("slider").value=bpm;
+  const m=MARKS.find(([a,b])=>bpm>=a&&bpm<b)||MARKS[MARKS.length-1];
+  $("marking").textContent=m[2]; $("range").textContent=`${m[0]}–${Math.min(m[1]-1,240)} BPM`;
+}
+function drawBeats(){
+  $("beats").innerHTML=Array.from({length:beatsPer},(_,i)=>`<div class="dot${i?"":" first"}"></div>`).join("");
+}
+function click(time,accent){
+  const o=ctx.createOscillator(), g=ctx.createGain();
+  o.frequency.value=accent?1600:1000;
+  g.gain.setValueAtTime(0.0001,time);
+  g.gain.exponentialRampToValueAtTime(accent?0.9:0.55,time+0.002);
+  g.gain.exponentialRampToValueAtTime(0.0001,time+0.05);
+  o.connect(g).connect(ctx.destination); o.start(time); o.stop(time+0.06);
+}
+function flash(i,time){
+  const delay=Math.max(0,(time-ctx.currentTime)*1000);
+  setTimeout(()=>{ if(!running) return;
+    const dots=$("beats").children;
+    for(let k=0;k<dots.length;k++) dots[k].classList.toggle("on",k===i);
+    setTimeout(()=>dots[i]&&dots[i].classList.remove("on"),90);
+  },delay);
+}
+function scheduler(){
+  while(nextTime<ctx.currentTime+0.1){
+    const i=beat%beatsPer;
+    click(nextTime,i===0); flash(i,nextTime);
+    nextTime+=60/bpm; beat++;
+  }
+}
+async function start(){
+  ctx=ctx||new (window.AudioContext||window.webkitAudioContext)();
+  if(ctx.state==="suspended") await ctx.resume();
+  running=true; beat=0; nextTime=ctx.currentTime+0.05;
+  timer=setInterval(scheduler,25); scheduler();
+  $("play").textContent="Detener";
+  try{ wake=await navigator.wakeLock?.request("screen"); }catch(e){}
+}
+function stop(){
+  running=false; clearInterval(timer);
+  $("play").textContent="Iniciar";
+  [...$("beats").children].forEach(d=>d.classList.remove("on"));
+  try{ wake&&wake.release(); }catch(e){} wake=null;
+}
+$("play").onclick=()=>running?stop():start();
+$("slider").oninput=e=>setBpm(+e.target.value);
+
+function hold(btn,d){
+  let t,r;
+  const go=()=>setBpm(bpm+d);
+  btn.addEventListener("pointerdown",()=>{go(); t=setTimeout(()=>r=setInterval(go,70),400);});
+  ["pointerup","pointerleave","pointercancel"].forEach(ev=>btn.addEventListener(ev,()=>{clearTimeout(t);clearInterval(r);}));
+}
+hold($("minus"),-1); hold($("plus"),1);
+
+$("meter").onclick=e=>{
+  const b=e.target.closest("button"); if(!b) return;
+  [...$("meter").children].forEach(x=>x.setAttribute("aria-pressed",x===b));
+  beatsPer=+b.dataset.n; beat=0; drawBeats();
+};
+
+let taps=[];
+$("tap").onclick=()=>{
+  const now=performance.now();
+  taps=taps.filter(t=>now-t<2500); taps.push(now);
+  if(taps.length>1){
+    const gaps=taps.slice(1).map((t,i)=>t-taps[i]);
+    setBpm(60000/(gaps.reduce((a,b)=>a+b)/gaps.length));
+  }
+};
+document.addEventListener("keydown",e=>{
+  if(e.code==="Space"&&e.target.tagName!=="INPUT"){e.preventDefault(); running?stop():start();}
+  if(e.key==="ArrowUp"){setBpm(bpm+1)} if(e.key==="ArrowDown"){setBpm(bpm-1)}
+});
+document.addEventListener("visibilitychange",async()=>{
+  if(running&&document.visibilityState==="visible"){ try{ wake=await navigator.wakeLock?.request("screen"); }catch(e){} }
+});
+drawBeats(); setBpm(112);
+if("serviceWorker" in navigator){ addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{})); }
+</script>
+</body>
+</html>
